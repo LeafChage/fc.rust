@@ -1,6 +1,4 @@
 use super::header::INesHeader;
-use super::program::ProgramRom;
-// use crate::result::Result;
 
 #[derive(Debug)]
 pub struct INes<'a> {
@@ -14,12 +12,11 @@ impl<'a> INes<'a> {
         Ok(INes { header, raw })
     }
 
-    pub fn program(&self) -> ProgramRom<'a> {
-        ProgramRom::new(&self.raw[self.header.program_rom_range()])
+    pub fn program(&self) -> Vec<u8> {
+        self.raw[self.header.program_rom_range()].to_vec()
     }
 
-    // pub fn sprites(&self, header: &INesHeader) -> anyhow::Result<Vec<Sprite>, anyhow::Error> {
-    //     let sprites_rom = &self.data[header.character_rom_range()];
-    //     Ok(Sprites::parse(sprites_rom))
-    // }
+    pub fn sprites(&self) -> Vec<u8> {
+        self.raw[self.header.character_rom_range()].to_vec()
+    }
 }

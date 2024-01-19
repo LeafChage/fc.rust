@@ -11,7 +11,7 @@ pub struct SpriteByte {
 }
 
 impl SpriteByte {
-    fn new(b0: u8, b1: u8, b2: u8, b3: u8, b4: u8, b5: u8, b6: u8, b7: u8) -> Self {
+    pub fn new(b0: u8, b1: u8, b2: u8, b3: u8, b4: u8, b5: u8, b6: u8, b7: u8) -> Self {
         Self {
             b0,
             b1,
@@ -22,6 +22,20 @@ impl SpriteByte {
             b6,
             b7,
         }
+    }
+
+    pub fn bits(&self) -> [u8; 8] {
+        let Self {
+            b0,
+            b1,
+            b2,
+            b3,
+            b4,
+            b5,
+            b6,
+            b7,
+        } = self;
+        [*b0, *b1, *b2, *b3, *b4, *b5, *b6, *b7]
     }
 }
 

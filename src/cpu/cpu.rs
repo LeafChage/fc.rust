@@ -1,17 +1,16 @@
-use super::memory::MemoryMap;
 use super::register::{Flag, Register};
-use crate::memory::{RAM, ROM};
-use crate::program::{IndexRegister, Opecode, Operand, ORDER_SET};
+use crate::memory::RAM;
+use crate::program::{IndexRegister, Opecode, Operand, CYCLES, ORDER_SET};
 use crate::result::Result;
 use binary;
 use binary::Byte;
 
-pub struct CPU<'a> {
+pub struct CPU<M: RAM> {
     register: Register,
-    memory: MemoryMap<'a>,
+    memory: M,
 }
 
-impl<'a> std::fmt::Display for CPU<'a> {
+impl<M: RAM + std::fmt::Display> std::fmt::Display for CPU<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.register)?;
         write!(f, "{}", self.memory)
@@ -44,8 +43,8 @@ enum R {
     PC,
 }
 
-impl<'a> CPU<'a> {
-    pub fn new(register: Register, memory: MemoryMap<'a>) -> Self {
+impl<M: RAM> CPU<M> {
+    pub fn new(register: Register, memory: M) -> Self {
         Self { register, memory }
     }
 
@@ -88,15 +87,18 @@ impl<'a> CPU<'a> {
         })
     }
 
-    fn read_program(&self, pc: usize) -> Result<(Opecode, Operand)> {
+    fn read_program(&self, pc: usize) -> Result<((Opecode, Operand), usize)> {
         let b = self.memory.get(pc)?;
         let (upper, lower) = binary::byte_to_4bit(b);
-        Ok(ORDER_SET[upper as usize][lower as usize])
+        Ok((
+            ORDER_SET[upper as usize][lower as usize],
+            CYCLES[upper as usize][lower as usize],
+        ))
     }
 
-    pub fn exec(&mut self) -> Result<()> {
+    pub fn exec(&mut self) -> Result<usize> {
         let pc = self.register.pc as usize;
-        let (opecode, operand) = self.read_program(self.register.pc as usize)?;
+        let ((opecode, operand), cycle) = self.read_program(self.register.pc as usize)?;
         self.register.pc += 1;
 
         let value = self.addr(operand, self.register.pc as usize)?;
@@ -115,7 +117,7 @@ impl<'a> CPU<'a> {
             ]
         );
         self.order(opecode, value)?;
-        Ok(())
+        Ok(cycle)
     }
 
     fn order(&mut self, opecode: Opecode, value: Value) -> Result<()> {
@@ -286,11 +288,11 @@ impl<'a> CPU<'a> {
     }
 
     fn beq(&mut self, value: Value) -> Result<()> {
-        self.branch(value, !self.register.p.z())
+        self.branch(value, self.register.p.z())
     }
 
     fn bne(&mut self, value: Value) -> Result<()> {
-        self.branch(value, self.register.p.z())
+        self.branch(value, !self.register.p.z())
     }
 
     fn bvc(&mut self, value: Value) -> Result<()> {
@@ -374,23 +376,23 @@ impl<'a> CPU<'a> {
         Ok(())
     }
     fn inx(&mut self, _: Value) -> Result<()> {
-        self.register.x += 1;
+        self.register.x = self.register.x.wrapping_add(1);
         self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
         Ok(())
     }
     fn dex(&mut self, _: Value) -> Result<()> {
-        self.register.x -= 1;
+        self.register.x = self.register.x.wrapping_sub(1);
         self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
         Ok(())
     }
     fn iny(&mut self, _: Value) -> Result<()> {
-        self.register.y += 1;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
+        self.register.y = self.register.y.wrapping_add(1);
+        self.update_flag(vec![Flag::N, Flag::Z], self.register.y);
         Ok(())
     }
     fn dey(&mut self, _: Value) -> Result<()> {
-        self.register.y -= 1;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
+        self.register.y = self.register.y.wrapping_sub(1);
+        self.update_flag(vec![Flag::N, Flag::Z], self.register.y);
         Ok(())
     }
 

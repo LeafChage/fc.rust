@@ -1,12 +1,14 @@
-use crate::ines::ProgramRom;
 use crate::memory::{RAM, ROM};
-use crate::ppu;
 use crate::result::{e, Result};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct MemoryMap<'a> {
-    memory: [u8; 0xFFFF],
+pub struct MemoryMap<PROM, WRAM, PPU>
+where
+    PROM: ROM<usize>,
+    WRAM: RAM,
+    PPU: RAM,
+{
     // wram: [u8; 0x07FF - 0x0000],
     // wram_mirror: [u8; 0x1FFF - 0x0800],
     // ppu_register: [u8; 0x2007 - 0x2000],
@@ -15,56 +17,78 @@ pub struct MemoryMap<'a> {
     // exrom: [u8; 0x5FFF - 0x4020],
     // exram: [u8; 0x7FFF - 0x6000],
     // rom: [u8; 0xFFFF - 0x8000],
-    ppu_register: Rc<RefCell<ppu::Register>>,
-    program_rom: ProgramRom<'a>,
+    ppu_bus: Rc<RefCell<PPU>>,
+    program_bus: PROM,
+    wram_bus: WRAM,
 }
 
-impl<'a> MemoryMap<'a> {
-    pub fn new(ppur: Rc<RefCell<ppu::Register>>, program_rom: ProgramRom<'a>) -> Self {
+impl<PROM, WRAM, PPU> MemoryMap<PROM, WRAM, PPU>
+where
+    PROM: ROM<usize>,
+    WRAM: RAM,
+    PPU: RAM,
+{
+    pub fn new(ppu_bus: Rc<RefCell<PPU>>, program_bus: PROM, wram_bus: WRAM) -> Self {
         MemoryMap {
-            memory: [0; 0xffff],
-            ppu_register: ppur,
-            program_rom,
+            ppu_bus,
+            program_bus,
+            wram_bus,
         }
     }
 }
 
-impl<'a> std::fmt::Display for MemoryMap<'a> {
+impl<PROM, WRAM, PPU> std::fmt::Display for MemoryMap<PROM, WRAM, PPU>
+where
+    PROM: ROM<usize>,
+    WRAM: RAM,
+    PPU: RAM + std::fmt::Display,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "ppu_register: \n {}", &self.ppu_register.borrow())
+        writeln!(f, "ppu_bus: \n {}", &self.ppu_bus.borrow())
     }
 }
 
-impl<'a> ROM for MemoryMap<'a> {
-    fn range(&self) -> std::ops::Range<usize> {
-        0x0000..0xFFFF
-    }
-
-    fn get(&self, i: usize) -> Result<u8> {
-        let r = self.ppu_register.borrow();
-
+impl<PROM, WRAM, PPU> ROM<usize> for MemoryMap<PROM, WRAM, PPU>
+where
+    PROM: ROM<usize, Output = u8>,
+    WRAM: RAM,
+    PPU: RAM,
+{
+    type Output = u8;
+    fn get(&self, i: usize) -> Result<Self::Output> {
         match i {
-            n if r.range().contains(&n) => r.get(n),
-            n if (0x8000..0xFFFF).contains(&n) => self.program_rom.get(n - 0x8000),
-            n if self.range().contains(&n) => Ok(self.memory[n as usize]),
-            _ => dbg!(Err(e::index_out_of_range(i, self.range()))),
+            _ if (0x0000..=0x07FF).contains(&i) => self.wram_bus.get(i),
+            _ if (0x0800..=0x1FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x2000..=0x2007).contains(&i) => self.ppu_bus.borrow().get(i - 0x2000),
+            _ if (0x2008..=0x3FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4000..=0x401D).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4020..=0x5FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x6000..=0x7FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x8000..=0xFFFF).contains(&i) => self.program_bus.get(i - 0x8000),
+            _ => dbg!(Err(e::index_out_of_range(i))),
         }
     }
 }
 
-impl<'a> RAM for MemoryMap<'a> {
+impl<PROM, WRAM, PPU> RAM for MemoryMap<PROM, WRAM, PPU>
+where
+    PROM: ROM<usize, Output = u8>,
+    WRAM: RAM,
+    PPU: RAM,
+{
     fn put(&mut self, i: usize, v: u8) -> Result<()> {
-        let mut r = self.ppu_register.borrow_mut();
         match i {
-            n if r.range().contains(&n) => r.put(n, v)?,
-            n if self.program_rom.range().contains(&n) => return Err(e::readonly(n)),
-            n if 0 < n && n < 0xFFFF => {
-                self.memory[n as usize] = v;
-            }
+            _ if (0x0000..=0x07FF).contains(&i) => self.wram_bus.put(i, v),
+            _ if (0x0800..=0x1FFF).contains(&i) => Err(e::readonly(i)),
+            _ if (0x2000..=0x2007).contains(&i) => self.ppu_bus.borrow_mut().put(i - 0x2000, v),
+            _ if (0x2008..=0x3FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4000..=0x401D).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4020..=0x5FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x6000..=0x7FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x8000..=0xFFFF).contains(&i) => Err(e::readonly(i)),
             _ => {
-                return dbg!(Err(e::index_out_of_range(i, self.range())));
+                dbg!(Err(e::index_out_of_range(i)))
             }
         }
-        Ok(())
     }
 }

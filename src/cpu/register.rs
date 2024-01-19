@@ -94,6 +94,7 @@ impl StatusRegister {
     pub fn c(&self) -> bool {
         self.carry
     }
+
     pub fn toggle(&mut self, flag: Flag, v: bool) {
         match flag {
             Flag::N => self.negative = v,

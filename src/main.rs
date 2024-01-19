@@ -1,12 +1,13 @@
-extern crate anyhow;
-extern crate binary;
-
 mod cpu;
+mod display;
 mod ines;
 mod memory;
 mod ppu;
 mod program;
 mod result;
+mod sprite;
+mod x;
+use result::Result;
 
 use std::fs;
 use std::io::Read;
@@ -14,9 +15,21 @@ use std::io::Read;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use result::Result;
+use macroquad::prelude as quad;
+use macroquad::prelude::Conf;
 
-fn main() -> Result<()> {
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "FC".to_owned(),
+        fullscreen: false,
+        window_height: display::H as i32,
+        window_width: display::W as i32,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
+async fn main() -> Result<()> {
     let mut f = fs::File::open("./resource/sample1.nes")?;
     let length = f.metadata()?.len() as usize;
     let mut data = vec![0; length];
@@ -24,25 +37,38 @@ fn main() -> Result<()> {
     let data = &data[..n];
 
     let ines = ines::INes::parse(data)?;
-    // let sprites = parser.sprites(&header)?;
-    // dbg!(sprites.len());
-    // ines::debug::create(sprites);
+    let display = Rc::new(RefCell::new(display::Display::default()));
 
-    let mut ppu_register = Rc::new(RefCell::new(ppu::Register::default()));
-    let mut ppu_memory = ppu::MemoryMap::default();
-    let mut ppu = ppu::PPU::new(Rc::clone(&ppu_register), ppu_memory);
-    let mut cpu_register = cpu::Register::default();
-    let mut cpu_memory = cpu::MemoryMap::new(Rc::clone(&ppu_register), ines.program());
+    let ppu_register = RefCell::new(ppu::Register::default());
+    let ppu_memory = ppu::MemoryMap::default();
+    let ppu = Rc::new(RefCell::new(ppu::PPU::new(
+        ppu_register,
+        ppu_memory,
+        Rc::clone(&display),
+        ines.sprites(),
+    )));
+
+    let wram = vec![];
+
+    let cpu_register = cpu::Register::default();
+    let cpu_memory = cpu::MemoryMap::new(Rc::clone(&ppu), ines.program(), wram);
     let mut cpu = cpu::CPU::new(cpu_register, cpu_memory);
 
-    println!("{}", cpu);
-    for i in 0..1000 {
-        cpu.exec()?;
-        ppu.exec()?;
-        println!("{}", cpu);
-        let _ = std::io::stdin().read_line(&mut String::new());
-    }
+    loop {
+        loop {
+            let cycle = cpu.exec()?;
+            let cycle = ppu.borrow_mut().exec(cycle * 3)?;
+            println!("{}", cpu);
+            if cycle == 0 {
+                break;
+            }
+        }
 
-    // show_binary_with(&data[..n], 16);
+        let image = &display.borrow().image;
+        let tx = macroquad::texture::Texture2D::from_image(&image);
+
+        quad::draw_texture(&tx, 0f32, 0f32, quad::WHITE);
+        quad::next_frame().await;
+    }
     Ok(())
 }
