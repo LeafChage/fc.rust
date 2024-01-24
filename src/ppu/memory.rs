@@ -1,3 +1,6 @@
+use crate::memory::{RAM, ROM};
+use crate::result::{e, Result};
+
 pub struct MemoryMap {
     pattern0: [u8; 0x1000], // 0x0000～0x0FFF
     pattern1: [u8; 0x1000], // 0x1000～0x1FFF
@@ -42,48 +45,77 @@ impl Default for MemoryMap {
     }
 }
 
-impl std::ops::Index<usize> for MemoryMap {
+impl ROM<usize> for MemoryMap {
     type Output = u8;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        match index {
-            i if (0x0000..=0x0FFF).contains(&i) => &self.pattern0[i],
-            i if (0x1000..=0x1FFF).contains(&i) => &self.pattern1[i - 0x1000],
-            i if (0x2000..=0x23BF).contains(&i) => &self.name0[i - 0x2000],
-            i if (0x23C0..=0x23FF).contains(&i) => &self.attribute0[i - 0x23C0],
-            i if (0x2400..=0x27BF).contains(&i) => &self.name1[i - 0x2400],
-            i if (0x27C0..=0x27FF).contains(&i) => &self.attribute1[i - 0x27C0],
-            i if (0x2800..=0x2BBF).contains(&i) => &self.name2[i - 0x2800],
-            i if (0x2BC0..=0x2BFF).contains(&i) => &self.attribute2[i - 0x2BC0],
-            i if (0x2C00..=0x2FBF).contains(&i) => &self.name3[i - 0x2C00],
-            i if (0x2FC0..=0x2FFF).contains(&i) => &self.attribute3[i - 0x2FC0],
-            i if (0x3000..=0x3EFF).contains(&i) => &self.mirror1[i - 0x3F00],
-            i if (0x3F00..=0x3F0F).contains(&i) => &self.background_palette[i - 0x3F00],
-            i if (0x3F10..=0x3F1F).contains(&i) => &self.sprite_palette[i - 0x3F10],
-            i if (0x3F20..=0x3FFF).contains(&i) => &self.mirror2[i - 0x3F20],
-            _ => unreachable!("{}", index),
+    fn get(&self, i: usize) -> Result<Self::Output> {
+        match i {
+            i if (0x0000..=0x0FFF).contains(&i) => Ok(self.pattern0[i]),
+            i if (0x1000..=0x1FFF).contains(&i) => Ok(self.pattern1[i - 0x1000]),
+            i if (0x2000..=0x23BF).contains(&i) => Ok(self.name0[i - 0x2000]),
+            i if (0x23C0..=0x23FF).contains(&i) => Ok(self.attribute0[i - 0x23C0]),
+            i if (0x2400..=0x27BF).contains(&i) => Ok(self.name1[i - 0x2400]),
+            i if (0x27C0..=0x27FF).contains(&i) => Ok(self.attribute1[i - 0x27C0]),
+            i if (0x2800..=0x2BBF).contains(&i) => Ok(self.name2[i - 0x2800]),
+            i if (0x2BC0..=0x2BFF).contains(&i) => Ok(self.attribute2[i - 0x2BC0]),
+            i if (0x2C00..=0x2FBF).contains(&i) => Ok(self.name3[i - 0x2C00]),
+            i if (0x2FC0..=0x2FFF).contains(&i) => Ok(self.attribute3[i - 0x2FC0]),
+            i if (0x3000..=0x3EFF).contains(&i) => Ok(self.mirror1[i - 0x3F00]),
+            i if (0x3F00..=0x3F0F).contains(&i) => Ok(self.background_palette[i - 0x3F00]),
+            i if (0x3F10..=0x3F1F).contains(&i) => Ok(self.sprite_palette[i - 0x3F10]),
+            i if (0x3F20..=0x3FFF).contains(&i) => Ok(self.mirror2[i - 0x3F20]),
+            _ => Err(e::index_out_of_range(i)),
         }
     }
 }
 
-impl std::ops::IndexMut<usize> for MemoryMap {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        match index {
-            i if (0x0000..=0x0FFF).contains(&i) => &mut self.pattern0[i],
-            i if (0x1000..=0x1FFF).contains(&i) => &mut self.pattern1[i - 0x1000],
-            i if (0x2000..=0x23BF).contains(&i) => &mut self.name0[i - 0x2000],
-            i if (0x23C0..=0x23FF).contains(&i) => &mut self.attribute0[i - 0x23C0],
-            i if (0x2400..=0x27BF).contains(&i) => &mut self.name1[i - 0x2400],
-            i if (0x27C0..=0x27FF).contains(&i) => &mut self.attribute1[i - 0x27C0],
-            i if (0x2800..=0x2BBF).contains(&i) => &mut self.name2[i - 0x2800],
-            i if (0x2BC0..=0x2BFF).contains(&i) => &mut self.attribute2[i - 0x2BC0],
-            i if (0x2C00..=0x2FBF).contains(&i) => &mut self.name3[i - 0x2C00],
-            i if (0x2FC0..=0x2FFF).contains(&i) => &mut self.attribute3[i - 0x2FC0],
-            i if (0x3000..=0x3EFF).contains(&i) => &mut self.mirror1[i - 0x3F00],
-            i if (0x3F00..=0x3F0F).contains(&i) => &mut self.background_palette[i - 0x3F00],
-            i if (0x3F10..=0x3F1F).contains(&i) => &mut self.sprite_palette[i - 0x3F10],
-            i if (0x3F20..=0x3FFF).contains(&i) => &mut self.mirror2[i - 0x3F20],
-            _ => unreachable!("{}", index),
-        }
+impl RAM<usize> for MemoryMap {
+    fn put(&mut self, i: usize, v: Self::Output) -> Result<()> {
+        match i {
+            i if (0x0000..=0x0FFF).contains(&i) => {
+                self.pattern0[i] = v;
+            }
+            i if (0x1000..=0x1FFF).contains(&i) => {
+                self.pattern1[i - 0x1000] = v;
+            }
+            i if (0x2000..=0x23BF).contains(&i) => {
+                self.name0[i - 0x2000] = v;
+            }
+            i if (0x23C0..=0x23FF).contains(&i) => {
+                self.attribute0[i - 0x23C0] = v;
+            }
+            i if (0x2400..=0x27BF).contains(&i) => {
+                self.name1[i - 0x2400] = v;
+            }
+            i if (0x27C0..=0x27FF).contains(&i) => {
+                self.attribute1[i - 0x27C0] = v;
+            }
+            i if (0x2800..=0x2BBF).contains(&i) => {
+                self.name2[i - 0x2800] = v;
+            }
+            i if (0x2BC0..=0x2BFF).contains(&i) => {
+                self.attribute2[i - 0x2BC0] = v;
+            }
+            i if (0x2C00..=0x2FBF).contains(&i) => {
+                self.name3[i - 0x2C00] = v;
+            }
+            i if (0x2FC0..=0x2FFF).contains(&i) => {
+                self.attribute3[i - 0x2FC0] = v;
+            }
+            i if (0x3000..=0x3EFF).contains(&i) => {
+                self.mirror1[i - 0x3F00] = v;
+            }
+            i if (0x3F00..=0x3F0F).contains(&i) => {
+                self.background_palette[i - 0x3F00] = v;
+            }
+            i if (0x3F10..=0x3F1F).contains(&i) => {
+                self.sprite_palette[i - 0x3F10] = v;
+            }
+            i if (0x3F20..=0x3FFF).contains(&i) => {
+                self.mirror2[i - 0x3F20] = v;
+            }
+            _ => return Err(e::index_out_of_range(i)),
+        };
+        Ok(())
     }
 }

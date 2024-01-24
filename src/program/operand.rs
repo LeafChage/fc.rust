@@ -29,7 +29,7 @@ impl Operand {
             Operand::ZeroPage => 1,
             Operand::ZeroPageIndex(_) => 1,
             Operand::Relative => 1,
-            Operand::IndirectIndex(_) => todo!(),
+            Operand::IndirectIndex(_) => 1,
             Operand::Accumulator => 0,
             Operand::Implied => 0,
             Operand::Nope => 0,

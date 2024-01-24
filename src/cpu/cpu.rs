@@ -1,16 +1,22 @@
-use super::register::{Flag, Register};
-use crate::memory::RAM;
+use super::register::Register;
+use super::status_register::SFlag;
+use crate::memory::{RAM, ROM};
 use crate::program::{IndexRegister, Opecode, Operand, CYCLES, ORDER_SET};
 use crate::result::Result;
 use binary;
 use binary::Byte;
 
-pub struct CPU<M: RAM> {
+pub struct CPU<M>
+where
+    M: RAM<usize> + ROM<[usize; 2], Output = u16>,
+{
     register: Register,
     memory: M,
 }
 
-impl<M: RAM + std::fmt::Display> std::fmt::Display for CPU<M> {
+impl<M: RAM<usize> + ROM<[usize; 2], Output = u16> + std::fmt::Display> std::fmt::Display
+    for CPU<M>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.register)?;
         write!(f, "{}", self.memory)
@@ -33,8 +39,7 @@ impl std::fmt::Debug for Value {
     }
 }
 
-/// for order to register
-enum R {
+pub enum R {
     A,
     X,
     Y,
@@ -43,7 +48,7 @@ enum R {
     PC,
 }
 
-impl<M: RAM> CPU<M> {
+impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
     pub fn new(register: Register, memory: M) -> Self {
         Self { register, memory }
     }
@@ -81,9 +86,25 @@ impl<M: RAM> CPU<M> {
                 (self.register.pc as i32 + 1 + i8::from_le_bytes([self.memory.get(pc)?]) as i32)
                     as u16,
             ),
-            Operand::IndirectIndex(_) => todo!(),
+            Operand::IndirectIndex(IndexRegister::X) => {
+                let v = u16::from_le_bytes([self.memory.get(pc)?, 0x00]) as usize;
+                let v = u16::from_be_bytes([
+                    self.memory.get(v as usize)?,
+                    self.memory.get(v + 1 as usize)?,
+                ]);
+                Value::Ref(v + self.register.x as u16)
+            }
+            Operand::IndirectIndex(IndexRegister::Y) => {
+                let v = u16::from_le_bytes([self.memory.get(pc)?, 0x00]) as usize;
+                let v = u16::from_be_bytes([
+                    self.memory.get(v as usize)?,
+                    self.memory.get(v + 1 as usize)?,
+                ]);
+                Value::Ref(v + self.register.y as u16)
+            }
             Operand::Immediate => Value::Immediate(self.memory.get(pc)?),
-            Operand::Accumulator | Operand::Implied | Operand::Nope => Value::Null,
+            Operand::Accumulator => Value::Immediate(self.register.a),
+            Operand::Implied | Operand::Nope => Value::Null,
         })
     }
 
@@ -96,7 +117,7 @@ impl<M: RAM> CPU<M> {
         ))
     }
 
-    pub fn exec(&mut self) -> Result<usize> {
+    pub fn exec(&mut self, debug: bool) -> Result<usize> {
         let pc = self.register.pc as usize;
         let ((opecode, operand), cycle) = self.read_program(self.register.pc as usize)?;
         self.register.pc += 1;
@@ -104,18 +125,20 @@ impl<M: RAM> CPU<M> {
         let value = self.addr(operand, self.register.pc as usize)?;
         self.register.pc += operand.length() as u16;
 
-        println!(
-            "{:?} {:?} {:?} {:02X?}",
-            opecode,
-            operand,
-            value,
-            [
-                self.memory.get(pc)?,
-                self.memory.get(pc + 1)?,
-                self.memory.get(pc + 2)?,
-                self.memory.get(pc + 3)?,
-            ]
-        );
+        if debug {
+            println!(
+                "{:?} {:?} {:?} {:02X?}",
+                opecode,
+                operand,
+                value,
+                [
+                    self.memory.get(pc)?,
+                    self.memory.get(pc + 1)?,
+                    self.memory.get(pc + 2)?,
+                    self.memory.get(pc + 3)?,
+                ]
+            );
+        }
         self.order(opecode, value)?;
         Ok(cycle)
     }
@@ -181,17 +204,17 @@ impl<M: RAM> CPU<M> {
         })
     }
 
-    fn update_flag(&mut self, flags: Vec<Flag>, result: u8) {
+    fn update_flag(&mut self, flags: Vec<SFlag>, result: u8) {
         for flag in flags.iter() {
             match flag {
-                Flag::N => self.register.p.update_negative(result),
-                Flag::V => self.register.p.update_overflow(result),
-                Flag::R => self.register.p.update_reserved(result),
-                Flag::B => self.register.p.update_break(result),
-                Flag::D => self.register.p.update_decimal(result),
-                Flag::I => self.register.p.update_interrupt(result),
-                Flag::Z => self.register.p.update_zero(result),
-                Flag::C => self.register.p.update_carry(result),
+                SFlag::N => self.register.p.update_negative(result),
+                SFlag::V => self.register.p.update_overflow(result),
+                SFlag::R => self.register.p.update_reserved(result),
+                SFlag::B => self.register.p.update_break(result),
+                SFlag::D => self.register.p.update_decimal(result),
+                SFlag::I => self.register.p.update_interrupt(result),
+                SFlag::Z => self.register.p.update_zero(result),
+                SFlag::C => self.register.p.update_carry(result),
             }
         }
     }
@@ -211,7 +234,7 @@ impl<M: RAM> CPU<M> {
             _ => unimplemented!(),
         };
         self.register.a = self.register.a & value;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
 
@@ -222,7 +245,7 @@ impl<M: RAM> CPU<M> {
             _ => unimplemented!(),
         };
         self.register.a = self.register.a | value;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
 
@@ -233,35 +256,56 @@ impl<M: RAM> CPU<M> {
             _ => unimplemented!(),
         };
         self.register.a = self.register.a ^ value;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
 
-    fn asl(&mut self, _: Value) -> Result<()> {
-        self.register.a = self.register.a << 1;
-        self.register.p.toggle(Flag::C, self.register.a.bit(7));
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+    fn asl(&mut self, value: Value) -> Result<()> {
+        let value = match value {
+            Value::Ref(addr) => self.memory.get(addr as usize)?,
+            Value::Immediate(value) => value,
+            _ => unreachable!(),
+        };
+        let value = value << 1;
+        self.register.p.toggle(SFlag::C, value.bit(7));
+        self.update_flag(vec![SFlag::N, SFlag::Z], value);
         Ok(())
     }
 
-    fn lsr(&mut self, _: Value) -> Result<()> {
-        self.register.a = self.register.a >> 1;
-        self.register.p.toggle(Flag::C, self.register.a.bit(0));
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+    fn lsr(&mut self, value: Value) -> Result<()> {
+        let value = match value {
+            Value::Ref(addr) => self.memory.get(addr as usize)?,
+            Value::Immediate(value) => value,
+            _ => unreachable!(),
+        };
+        let value = value >> 1;
+        self.register.p.toggle(SFlag::C, value.bit(0));
+        self.update_flag(vec![SFlag::N, SFlag::Z], value);
         Ok(())
     }
 
-    fn rol(&mut self, _: Value) -> Result<()> {
-        self.register.a = (self.register.a << 1).set(0, self.register.p.c());
-        self.register.p.toggle(Flag::C, self.register.a.bit(7));
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+    fn rol(&mut self, value: Value) -> Result<()> {
+        let value = match value {
+            Value::Ref(addr) => self.memory.get(addr as usize)?,
+            Value::Immediate(value) => value,
+            _ => unreachable!(),
+        };
+        let value = (value << 1).set(0, self.register.p.c());
+        self.register.p.toggle(SFlag::C, value.bit(7));
+        self.update_flag(vec![SFlag::N, SFlag::Z], value);
         Ok(())
     }
 
-    fn ror(&mut self, _: Value) -> Result<()> {
-        self.register.a = (self.register.a >> 1).set(7, self.register.p.c());
-        self.register.p.toggle(Flag::C, self.register.a.bit(0));
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+    fn ror(&mut self, value: Value) -> Result<()> {
+        let value = match value {
+            Value::Ref(addr) => self.memory.get(addr as usize)?,
+            Value::Immediate(value) => value,
+            _ => unreachable!(),
+        };
+
+        let value = (value >> 1).set(7, self.register.p.c());
+        self.register.p.toggle(SFlag::C, value.bit(0));
+        self.update_flag(vec![SFlag::N, SFlag::Z], value);
         Ok(())
     }
 
@@ -325,19 +369,49 @@ impl<M: RAM> CPU<M> {
     }
 
     fn jsr(&mut self, value: Value) -> Result<()> {
-        todo!();
+        let to = match value {
+            Value::Ref(value) => self.memory.get(value as usize)?,
+            _ => unreachable!(),
+        };
+        // すでにpcが次の命令のアドレスになっているのでここで
+        // jsr命令の最後のアドレスを格納するように調整する
+        let (upper, lower) = binary::u16_to_u8(self.register.pc - 1);
+        self.stack_push(upper)?;
+        self.stack_push(lower)?;
+        self.register.pc = to as u16;
+        Ok(())
     }
-    fn rts(&mut self, value: Value) -> Result<()> {
+    fn rts(&mut self, _: Value) -> Result<()> {
+        let lower = self.stack_pop()?;
+        let upper = self.stack_pop()?;
+        self.register.pc = u16::from_le_bytes([lower, upper]);
+        self.register.pc += 1;
         todo!();
     }
 
-    fn brk(&mut self, _: Value) -> Result<()> {
-        if self.register.p.i() {
-            // ignore
-            return Ok(());
+    pub fn reset(&mut self) -> Result<()> {
+        self.register = Register::default();
+        self.register.p.on(SFlag::I);
+        self.register.pc = if let Ok(addr) = self.memory.get([0xFFFC, 0xFFFD]) {
+            addr
         } else {
-            todo!();
+            0x8000
+        };
+        Ok(())
+    }
+
+    fn brk(&mut self, _: Value) -> Result<()> {
+        if !self.register.p.i() {
+            self.register.p.on(SFlag::B);
+            let (upper, lower) = binary::u16_to_u8(self.register.pc);
+            self.stack_push(upper)?;
+            self.stack_push(lower)?;
+            self.stack_push(u8::from(self.register.p))?;
+            self.register.p.on(SFlag::I);
+
+            self.register.pc = self.memory.get([0xFFFE, 0xFFFF])?;
         }
+        Ok(())
     }
     fn rti(&mut self, value: Value) -> Result<()> {
         todo!();
@@ -361,7 +435,7 @@ impl<M: RAM> CPU<M> {
 
         let result = self.memory.get(value)? + 1;
         self.memory.put(value, result)?;
-        self.update_flag(vec![Flag::N, Flag::Z], result);
+        self.update_flag(vec![SFlag::N, SFlag::Z], result);
         Ok(())
     }
     fn dec(&mut self, value: Value) -> Result<()> {
@@ -372,56 +446,56 @@ impl<M: RAM> CPU<M> {
 
         let result = self.memory.get(value)? - 1;
         self.memory.put(value, result)?;
-        self.update_flag(vec![Flag::N, Flag::Z], result);
+        self.update_flag(vec![SFlag::N, SFlag::Z], result);
         Ok(())
     }
     fn inx(&mut self, _: Value) -> Result<()> {
         self.register.x = self.register.x.wrapping_add(1);
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.x);
         Ok(())
     }
     fn dex(&mut self, _: Value) -> Result<()> {
         self.register.x = self.register.x.wrapping_sub(1);
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.x);
         Ok(())
     }
     fn iny(&mut self, _: Value) -> Result<()> {
         self.register.y = self.register.y.wrapping_add(1);
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.y);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.y);
         Ok(())
     }
     fn dey(&mut self, _: Value) -> Result<()> {
         self.register.y = self.register.y.wrapping_sub(1);
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.y);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.y);
         Ok(())
     }
 
     fn clc(&mut self, _: Value) -> Result<()> {
-        self.register.p.off(Flag::C);
+        self.register.p.off(SFlag::C);
         Ok(())
     }
     fn sec(&mut self, _: Value) -> Result<()> {
-        self.register.p.on(Flag::C);
+        self.register.p.on(SFlag::C);
         Ok(())
     }
     fn cli(&mut self, _: Value) -> Result<()> {
-        self.register.p.off(Flag::I);
+        self.register.p.off(SFlag::I);
         Ok(())
     }
     fn sei(&mut self, _: Value) -> Result<()> {
-        self.register.p.on(Flag::I);
+        self.register.p.on(SFlag::I);
         Ok(())
     }
     fn cld(&mut self, _: Value) -> Result<()> {
-        self.register.p.off(Flag::D);
+        self.register.p.off(SFlag::D);
         Ok(())
     }
     fn sed(&mut self, _: Value) -> Result<()> {
-        self.register.p.on(Flag::D);
+        self.register.p.on(SFlag::D);
         Ok(())
     }
     fn clv(&mut self, _: Value) -> Result<()> {
-        self.register.p.off(Flag::V);
+        self.register.p.off(SFlag::V);
         Ok(())
     }
 
@@ -446,7 +520,7 @@ impl<M: RAM> CPU<M> {
             }
             _ => unreachable!(),
         };
-        self.update_flag(vec![Flag::N, Flag::Z], v);
+        self.update_flag(vec![SFlag::N, SFlag::Z], v);
         Ok(())
     }
 
@@ -494,27 +568,27 @@ impl<M: RAM> CPU<M> {
     ///
     fn tax(&mut self, _: Value) -> Result<()> {
         self.register.x = self.register.a;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
     fn txa(&mut self, _: Value) -> Result<()> {
         self.register.a = self.register.x;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
     fn tay(&mut self, _: Value) -> Result<()> {
         self.register.y = self.register.a;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
     fn tya(&mut self, _: Value) -> Result<()> {
         self.register.a = self.register.y;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
         Ok(())
     }
     fn tsx(&mut self, _: Value) -> Result<()> {
         self.register.x = self.register.s;
-        self.update_flag(vec![Flag::N, Flag::Z], self.register.x);
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.x);
         Ok(())
     }
     fn txs(&mut self, _: Value) -> Result<()> {
@@ -537,5 +611,19 @@ impl<M: RAM> CPU<M> {
 
     fn nop(&self, _: Value) -> Result<()> {
         Ok(())
+    }
+
+    /**
+     * handle stack
+     */
+    fn stack_push(&mut self, v: u8) -> Result<()> {
+        self.memory.put(self.register.sp as usize, v)?;
+        self.register.sp -= 1;
+        Ok(())
+    }
+
+    fn stack_pop(&mut self) -> Result<u8> {
+        self.register.sp += 1;
+        self.memory.get(self.register.sp as usize)
     }
 }

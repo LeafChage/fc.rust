@@ -9,8 +9,8 @@ pub mod e {
         anyhow::anyhow!("writeonly, {}(0x{:02X?})", i, i)
     }
 
-    pub fn index_out_of_range(i: usize) -> anyhow::Error {
-        anyhow::anyhow!("index out of range, {}(0x{:02X?})", i, i)
+    pub fn index_out_of_range<T: std::fmt::Debug>(i: T) -> anyhow::Error {
+        anyhow::anyhow!("index out of range, {:?}", i)
     }
 
     pub fn unimplemented() -> anyhow::Error {

@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 pub struct PPU<VRAM, CHROM>
 where
-    VRAM: RAM,
-    CHROM: ROM<usize> + ROM<std::ops::Range<usize>, Output = Vec<u8>>,
+    VRAM: RAM<usize>,
+    CHROM: ROM<std::ops::Range<usize>, Output = Vec<u8>>,
 {
     cycle: usize,
     register: RefCell<Register>,
@@ -20,8 +20,8 @@ where
 
 impl<VRAM, CHROM> PPU<VRAM, CHROM>
 where
-    VRAM: RAM,
-    CHROM: ROM<usize> + ROM<std::ops::Range<usize>, Output = Vec<u8>>,
+    VRAM: RAM<usize>,
+    CHROM: ROM<std::ops::Range<usize>, Output = Vec<u8>>,
 {
     pub fn new(
         register: RefCell<Register>,
@@ -57,8 +57,8 @@ where
 
 impl<VRAM, CHROM> std::fmt::Display for PPU<VRAM, CHROM>
 where
-    VRAM: RAM,
-    CHROM: ROM<usize> + ROM<std::ops::Range<usize>, Output = Vec<u8>>,
+    VRAM: RAM<usize>,
+    CHROM: ROM<std::ops::Range<usize>, Output = Vec<u8>>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.register.borrow())
@@ -67,8 +67,8 @@ where
 
 impl<VRAM, CHROM> ROM<usize> for PPU<VRAM, CHROM>
 where
-    VRAM: RAM,
-    CHROM: ROM<usize> + ROM<std::ops::Range<usize>, Output = Vec<u8>>,
+    VRAM: RAM<usize>,
+    CHROM: ROM<std::ops::Range<usize>, Output = Vec<u8>>,
 {
     type Output = u8;
     fn get(&self, index: usize) -> Result<Self::Output> {
@@ -91,10 +91,10 @@ where
     }
 }
 
-impl<VRAM, CHROM> RAM for PPU<VRAM, CHROM>
+impl<VRAM, CHROM> RAM<usize> for PPU<VRAM, CHROM>
 where
-    VRAM: RAM,
-    CHROM: ROM<usize> + ROM<std::ops::Range<usize>, Output = Vec<u8>>,
+    VRAM: RAM<usize>,
+    CHROM: ROM<std::ops::Range<usize>, Output = Vec<u8>>,
 {
     fn put(&mut self, index: usize, v: u8) -> Result<()> {
         match index {

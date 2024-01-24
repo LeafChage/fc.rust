@@ -1,3 +1,3 @@
 mod range;
 
-pub use range::XRange;
+pub use range::RangeInside;
