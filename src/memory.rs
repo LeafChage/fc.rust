@@ -1,51 +1,50 @@
 use crate::result::{e, Result};
-use crate::x::RangeInside;
+use crate::x::range;
 
+/// read only memory
 pub trait ROM<Idx: Sized> {
     type Output: Sized;
     fn get(&self, i: Idx) -> Result<Self::Output>;
 }
 
-pub trait RAM<Idx: Sized>: ROM<usize, Output = u8> {
-    fn put(&mut self, i: Idx, v: Self::Output) -> Result<()>;
+/// write only memory
+pub trait WOM<Idx: Sized> {
+    type Input: Sized;
+    fn put(&mut self, i: Idx, v: Self::Input) -> Result<()>;
 }
 
-impl<T> ROM<usize> for T
-where
-    T: std::ops::Index<usize, Output = u8> + Len,
-{
-    type Output = T::Output;
+pub trait RAM<Idx: Sized>: ROM<Idx> + WOM<Idx> {}
+
+/**
+ * Vec<u8>
+ */
+impl RAM<usize> for Vec<u8> {}
+impl ROM<usize> for Vec<u8> {
+    type Output = u8;
 
     fn get(&self, i: usize) -> Result<Self::Output> {
-        if self.length() > i {
+        if self.len() > i {
             Ok(self[i])
         } else {
             Err(e::index_out_of_range(i))
         }
     }
 }
-
-impl<T> ROM<std::ops::Range<usize>> for T
-where
-    T: std::ops::Index<std::ops::Range<usize>, Output = [u8]> + Len,
-{
+impl ROM<std::ops::Range<usize>> for Vec<u8> {
     type Output = Vec<u8>;
 
     fn get(&self, i: std::ops::Range<usize>) -> Result<Self::Output> {
-        if (0..self.length()).inside(&i) {
+        if range::inside(0..self.len(), &i) {
             Ok(self[i].to_vec())
         } else {
             Err(e::index_out_of_range(i.start))
         }
     }
 }
-
-impl<T> RAM<usize> for T
-where
-    T: std::ops::IndexMut<usize, Output = u8> + Len,
-{
-    fn put(&mut self, i: usize, v: u8) -> Result<()> {
-        if self.length() > i {
+impl WOM<usize> for Vec<u8> {
+    type Input = u8;
+    fn put(&mut self, i: usize, v: Self::Input) -> Result<()> {
+        if self.len() > i {
             self[i] = v;
         } else {
             return Err(e::index_out_of_range(i));
@@ -54,18 +53,40 @@ where
     }
 }
 
-pub trait Len {
-    fn length(&self) -> usize;
-}
+/**
+ * [u8]
+ */
+impl RAM<usize> for [u8] {}
+impl ROM<usize> for [u8] {
+    type Output = u8;
 
-impl Len for Vec<u8> {
-    fn length(&self) -> usize {
-        self.len()
+    fn get(&self, i: usize) -> Result<Self::Output> {
+        if self.len() > i {
+            Ok(self[i])
+        } else {
+            Err(e::index_out_of_range(i))
+        }
     }
 }
+impl ROM<std::ops::Range<usize>> for [u8] {
+    type Output = Vec<u8>;
 
-impl<T> Len for &[T] {
-    fn length(&self) -> usize {
-        self.len()
+    fn get(&self, i: std::ops::Range<usize>) -> Result<Self::Output> {
+        if range::inside(0..self.len(), &i) {
+            Ok(self[i].to_vec())
+        } else {
+            Err(e::index_out_of_range(i.start))
+        }
+    }
+}
+impl WOM<usize> for [u8] {
+    type Input = u8;
+    fn put(&mut self, i: usize, v: Self::Input) -> Result<()> {
+        if self.len() > i {
+            self[i] = v;
+        } else {
+            return Err(e::index_out_of_range(i));
+        }
+        Ok(())
     }
 }

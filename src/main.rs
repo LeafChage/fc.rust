@@ -4,8 +4,10 @@ mod ines;
 mod memory;
 mod ppu;
 mod program;
+mod rect;
 mod result;
 mod sprite;
+mod vec2;
 mod x;
 
 use clap::Parser;
@@ -51,21 +53,30 @@ async fn main() -> Result<()> {
     let data = &data[..n];
 
     let ines = ines::INes::parse(data)?;
+    println!("{}", ines);
     let display = Rc::new(RefCell::new(display::Display::default()));
 
+    // program::debug_program(ines.program());
+    // panic!();
+
+    // sprite::debug_sprite(ines.sprites());
+    // panic!();
+
     let ppu_register = RefCell::new(ppu::Register::default());
-    let ppu_memory = ppu::MemoryMap::default();
+    let ppu_memory = ppu::MemoryMap::new(ines.sprites());
     let ppu = Rc::new(RefCell::new(ppu::PPU::new(
         ppu_register,
         ppu_memory,
         Rc::clone(&display),
-        ines.sprites(),
     )));
 
     let wram = vec![0; 0x2000];
+    let exrom = vec![0; 0x5FFF - 0x4020];
+    let exram = vec![0; 0x7FFF - 0x6000];
+    let apu = vec![0; 0x401F - 0x4000];
 
     let cpu_register = cpu::Register::default();
-    let cpu_memory = cpu::MemoryMap::new(Rc::clone(&ppu), ines.program(), wram);
+    let cpu_memory = cpu::MemoryMap::new(Rc::clone(&ppu), ines.program(), wram, apu, exram, exrom);
     let mut cpu = cpu::CPU::new(cpu_register, cpu_memory);
 
     cpu.reset()?;
@@ -75,13 +86,13 @@ async fn main() -> Result<()> {
 }
 
 async fn app<
-    CPUM: memory::RAM<usize> + memory::ROM<[usize; 2], Output = u16> + std::fmt::Display,
-    VRAM: memory::RAM<usize>,
-    CHROM: memory::ROM<std::ops::Range<usize>, Output = Vec<u8>>,
+    CPUM: memory::RAM<usize, Input = u8, Output = u8>
+        + memory::ROM<[usize; 2], Output = u16>
+        + std::fmt::Display,
 >(
     cli: &CLI,
     cpu: &mut cpu::CPU<CPUM>,
-    ppu: Rc<RefCell<ppu::PPU<VRAM, CHROM>>>,
+    ppu: Rc<RefCell<ppu::PPU>>,
     display: Rc<RefCell<display::Display>>,
 ) -> Result<()> {
     loop {

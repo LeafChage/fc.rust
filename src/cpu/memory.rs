@@ -1,50 +1,89 @@
-use crate::memory::{Len, RAM, ROM};
+use crate::memory::{RAM, ROM, WOM};
 use crate::result::{e, Result};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct MemoryMap<PROM, WRAM, PPU>
+pub struct MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
 where
-    PROM: ROM<usize>,
-    WRAM: RAM<usize>,
-    PPU: RAM<usize>,
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
+    PROM: ROM<usize, Output = u8>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8>,
 {
+    exrom: EXROM,
+    exram: EXRAM,
     ppu_bus: Rc<RefCell<PPU>>,
+    apu: APU,
     program_bus: PROM,
     wram_bus: WRAM,
 }
 
-impl<PROM, WRAM, PPU> MemoryMap<PROM, WRAM, PPU>
+impl<EXRAM, EXROM, APU, PROM, WRAM, PPU> MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
 where
-    PROM: ROM<usize>,
-    WRAM: RAM<usize>,
-    PPU: RAM<usize>,
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
+    PROM: ROM<usize, Output = u8>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8>,
 {
-    pub fn new(ppu_bus: Rc<RefCell<PPU>>, program_bus: PROM, wram_bus: WRAM) -> Self {
+    pub fn new(
+        ppu_bus: Rc<RefCell<PPU>>,
+        program_bus: PROM,
+        wram_bus: WRAM,
+        apu: APU,
+        exram: EXRAM,
+        exrom: EXROM,
+    ) -> Self {
         MemoryMap {
             ppu_bus,
             program_bus,
+            apu,
             wram_bus,
+            exrom,
+            exram,
         }
     }
 }
 
-impl<PROM, WRAM, PPU> std::fmt::Display for MemoryMap<PROM, WRAM, PPU>
+impl<EXROM, EXRAM, PROM, APU, WRAM, PPU> std::fmt::Display
+    for MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
 where
-    PROM: ROM<usize>,
-    WRAM: RAM<usize>,
-    PPU: RAM<usize> + std::fmt::Display,
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
+    PROM: ROM<usize, Output = u8>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8> + std::fmt::Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "ppu_bus: \n {}", &self.ppu_bus.borrow())
     }
 }
 
-impl<PROM, WRAM, PPU> ROM<[usize; 2]> for MemoryMap<PROM, WRAM, PPU>
+impl<EXROM, EXRAM, PROM, APU, WRAM, PPU> RAM<usize>
+    for MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
 where
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
     PROM: ROM<usize, Output = u8>,
-    WRAM: RAM<usize>,
-    PPU: RAM<usize>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8>,
+{
+}
+
+impl<EXROM, EXRAM, PROM, APU, WRAM, PPU> ROM<[usize; 2]>
+    for MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
+where
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
+    PROM: ROM<usize, Output = u8>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8>,
 {
     type Output = u16;
 
@@ -57,13 +96,18 @@ where
     }
 }
 
-impl<PROM, WRAM, PPU> ROM<usize> for MemoryMap<PROM, WRAM, PPU>
+impl<EXROM, EXRAM, PROM, APU, WRAM, PPU> ROM<usize>
+    for MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
 where
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
     PROM: ROM<usize, Output = u8>,
-    WRAM: RAM<usize>,
-    PPU: RAM<usize>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8>,
 {
     type Output = u8;
+
     fn get(&self, i: usize) -> Result<Self::Output> {
         match i {
             // wram: [u8; 0x07FF - 0x0000],
@@ -75,11 +119,11 @@ where
             // ppu_register_mirror: [u8; 0x3fff - 0x2008],
             _ if (0x2008..=0x3FFF).contains(&i) => Err(e::unimplemented()),
             // apu: [u8; 0x401F - 0x4000],
-            _ if (0x4000..=0x401D).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4000..=0x401D).contains(&i) => self.apu.get(i - 0x4000),
             // exrom: [u8; 0x5FFF - 0x4020],
-            _ if (0x4020..=0x5FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4020..=0x5FFF).contains(&i) => self.exrom.get(i - 0x4020),
             // exram: [u8; 0x7FFF - 0x6000],
-            _ if (0x6000..=0x7FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x6000..=0x7FFF).contains(&i) => self.exram.get(i - 0x6000),
             // rom: [u8; 0xFFFF - 0x8000],
             _ if (0x8000..=0xFFFF).contains(&i) => self.program_bus.get(i - 0x8000),
             _ => dbg!(Err(e::index_out_of_range(i))),
@@ -87,21 +131,26 @@ where
     }
 }
 
-impl<PROM, WRAM, PPU> RAM<usize> for MemoryMap<PROM, WRAM, PPU>
+impl<EXROM, EXRAM, PROM, APU, WRAM, PPU> WOM<usize>
+    for MemoryMap<EXROM, EXRAM, PROM, APU, WRAM, PPU>
 where
+    EXROM: ROM<usize, Output = u8>,
+    EXRAM: RAM<usize, Output = u8, Input = u8>,
+    APU: RAM<usize, Output = u8, Input = u8>,
     PROM: ROM<usize, Output = u8>,
-    WRAM: RAM<usize>,
-    PPU: RAM<usize>,
+    WRAM: RAM<usize, Output = u8, Input = u8>,
+    PPU: RAM<usize, Output = u8, Input = u8>,
 {
+    type Input = u8;
     fn put(&mut self, i: usize, v: u8) -> Result<()> {
         match i {
             _ if (0x0000..=0x07FF).contains(&i) => self.wram_bus.put(i, v),
             _ if (0x0800..=0x1FFF).contains(&i) => Err(e::readonly(i)),
             _ if (0x2000..=0x2007).contains(&i) => self.ppu_bus.borrow_mut().put(i - 0x2000, v),
             _ if (0x2008..=0x3FFF).contains(&i) => Err(e::unimplemented()),
-            _ if (0x4000..=0x401D).contains(&i) => Err(e::unimplemented()),
-            _ if (0x4020..=0x5FFF).contains(&i) => Err(e::unimplemented()),
-            _ if (0x6000..=0x7FFF).contains(&i) => Err(e::unimplemented()),
+            _ if (0x4000..=0x401D).contains(&i) => self.apu.put(i - 0x4000, v),
+            _ if (0x4020..=0x5FFF).contains(&i) => Err(e::readonly(i)),
+            _ if (0x6000..=0x7FFF).contains(&i) => self.exram.put(i - 0x6000, v),
             _ if (0x8000..=0xFFFF).contains(&i) => Err(e::readonly(i)),
             _ => {
                 dbg!(Err(e::index_out_of_range(i)))

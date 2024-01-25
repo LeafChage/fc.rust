@@ -2,7 +2,7 @@ use super::sprite_byte::SpriteByte;
 
 pub const SPRITE_LENGTH: usize = 8;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Sprite {
     raw: [[u8; SPRITE_LENGTH]; SPRITE_LENGTH],
 }

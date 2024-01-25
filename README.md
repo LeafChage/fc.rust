@@ -6,3 +6,6 @@
 * [sample](http://hp.vector.co.jp/authors/VA042397/nes/sample.html)
 * [cpu](http://pgate1.at-ninja.jp/NES_on_FPGA/nes_cpu.htm#instruction)
 * [orderset](https://www.masswerk.at/6502/6502_instruction_set.html)
+
+## Task
+* [ ] PPU register

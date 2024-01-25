@@ -3,12 +3,28 @@ use binary::Byte;
 pub struct StatusRegister {
     negative: bool,
     overflow: bool,
-    reserved: bool,
     breaked: bool,
     decimal: bool,
     interrupt: bool,
     zero: bool,
     carry: bool,
+}
+
+impl std::fmt::Display for StatusRegister {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "n: {} / v: {} / r: {} / b: {} / d: {} / i: {} / z: {} / c: {}",
+            if self.n() { 1 } else { 0 },
+            if self.v() { 1 } else { 0 },
+            if self.r() { 1 } else { 0 },
+            if self.b() { 1 } else { 0 },
+            if self.d() { 1 } else { 0 },
+            if self.i() { 1 } else { 0 },
+            if self.z() { 1 } else { 0 },
+            if self.c() { 1 } else { 0 }
+        )
+    }
 }
 
 pub enum SFlag {
@@ -22,17 +38,31 @@ pub enum SFlag {
     C,
 }
 
+impl From<u8> for StatusRegister {
+    fn from(value: u8) -> Self {
+        Self {
+            negative: value.bit(7),
+            overflow: value.bit(6),
+            breaked: value.bit(4),
+            decimal: value.bit(3),
+            interrupt: value.bit(2),
+            zero: value.bit(1),
+            carry: value.bit(0),
+        }
+    }
+}
+
 impl From<StatusRegister> for u8 {
     fn from(value: StatusRegister) -> Self {
         let result = 0u8;
         result.set(7, value.n());
         result.set(6, value.v());
-        result.set(6, value.r());
-        result.set(6, value.b());
-        result.set(6, value.d());
-        result.set(6, value.i());
-        result.set(6, value.z());
-        result.set(6, value.c());
+        result.set(5, value.r());
+        result.set(4, value.b());
+        result.set(3, value.d());
+        result.set(2, value.i());
+        result.set(1, value.z());
+        result.set(0, value.c());
         result
     }
 }
@@ -45,7 +75,7 @@ impl StatusRegister {
         self.overflow
     }
     pub fn r(&self) -> bool {
-        self.reserved
+        true
     }
     pub fn b(&self) -> bool {
         self.breaked
@@ -67,7 +97,7 @@ impl StatusRegister {
         match flag {
             SFlag::N => self.negative = v,
             SFlag::V => self.overflow = v,
-            SFlag::R => self.reserved = v,
+            SFlag::R => unreachable!("always on"),
             SFlag::B => self.breaked = v,
             SFlag::D => self.decimal = v,
             SFlag::I => self.interrupt = v,
@@ -91,10 +121,6 @@ impl StatusRegister {
         todo!();
     }
 
-    pub fn update_reserved(&mut self, result: u8) {
-        todo!();
-    }
-
     pub fn update_break(&mut self, result: u8) {
         todo!();
     }
@@ -112,6 +138,7 @@ impl StatusRegister {
     }
 
     pub fn update_carry(&mut self, result: u8) {
-        todo!();
+        let v = i8::from_ne_bytes([result]);
+        self.toggle(SFlag::C, v >= 0);
     }
 }

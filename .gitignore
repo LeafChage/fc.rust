@@ -1,2 +1,4 @@
+resource/*
 target
-tmp.log
+tmp*
+*.log

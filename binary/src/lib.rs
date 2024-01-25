@@ -20,8 +20,7 @@ fn it_byte_to_4bit() {
     assert_eq!(byte_to_4bit(0x4Fu8), (0x4, 0xf));
 }
 
+/// return upper, lower
 pub fn u16_to_u8(v: u16) -> (u8, u8) {
     ((v >> 8) as u8, (0x00FF & v) as u8)
 }
-
-

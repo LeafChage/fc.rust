@@ -1,21 +1,24 @@
 use super::register::Register;
 use super::status_register::SFlag;
-use crate::memory::{RAM, ROM};
+use crate::memory::{ROM, WOM};
 use crate::program::{IndexRegister, Opecode, Operand, CYCLES, ORDER_SET};
 use crate::result::Result;
-use binary;
 use binary::Byte;
 
 pub struct CPU<M>
 where
-    M: RAM<usize> + ROM<[usize; 2], Output = u16>,
+    M: WOM<usize, Input = u8> + ROM<usize, Output = u8> + ROM<[usize; 2], Output = u16>,
 {
     register: Register,
     memory: M,
 }
 
-impl<M: RAM<usize> + ROM<[usize; 2], Output = u16> + std::fmt::Display> std::fmt::Display
-    for CPU<M>
+impl<M> std::fmt::Display for CPU<M>
+where
+    M: WOM<usize, Input = u8>
+        + ROM<usize, Output = u8>
+        + ROM<[usize; 2], Output = u16>
+        + std::fmt::Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.register)?;
@@ -48,7 +51,10 @@ pub enum R {
     PC,
 }
 
-impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
+impl<M> CPU<M>
+where
+    M: WOM<usize, Input = u8> + ROM<usize, Output = u8> + ROM<[usize; 2], Output = u16>,
+{
     pub fn new(register: Register, memory: M) -> Self {
         Self { register, memory }
     }
@@ -144,64 +150,64 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
     }
 
     fn order(&mut self, opecode: Opecode, value: Value) -> Result<()> {
-        Ok(match opecode {
-            Opecode::ADC => self.adc(value)?,
-            Opecode::SBC => self.sbc(value)?,
-            Opecode::AND => self.and(value)?,
-            Opecode::ORA => self.ora(value)?,
-            Opecode::EOR => self.eor(value)?,
-            Opecode::ASL => self.asl(value)?,
-            Opecode::LSR => self.lsr(value)?,
-            Opecode::ROL => self.rol(value)?,
-            Opecode::ROR => self.ror(value)?,
-            Opecode::BCC => self.bcc(value)?,
-            Opecode::BCS => self.bcs(value)?,
-            Opecode::BEQ => self.beq(value)?,
-            Opecode::BNE => self.bne(value)?,
-            Opecode::BVC => self.bvc(value)?,
-            Opecode::BVS => self.bvs(value)?,
-            Opecode::BPL => self.bpl(value)?,
-            Opecode::BMI => self.bmi(value)?,
-            Opecode::BIT => self.bit(value)?,
-            Opecode::JMP => self.jmp(value)?,
-            Opecode::JSR => self.jsr(value)?,
-            Opecode::RTS => self.rts(value)?,
-            Opecode::BRK => self.brk(value)?,
-            Opecode::RTI => self.rti(value)?,
-            Opecode::CMP => self.cmp(value)?,
-            Opecode::CPX => self.cpx(value)?,
-            Opecode::CPY => self.cpy(value)?,
-            Opecode::INC => self.inc(value)?,
-            Opecode::DEC => self.dec(value)?,
-            Opecode::INX => self.inx(value)?,
-            Opecode::DEX => self.dex(value)?,
-            Opecode::INY => self.iny(value)?,
-            Opecode::DEY => self.dey(value)?,
-            Opecode::CLC => self.clc(value)?,
-            Opecode::SEC => self.sec(value)?,
-            Opecode::CLI => self.cli(value)?,
-            Opecode::SEI => self.sei(value)?,
-            Opecode::CLD => self.cld(value)?,
-            Opecode::SED => self.sed(value)?,
-            Opecode::CLV => self.clv(value)?,
-            Opecode::LDA => self.lda(value)?,
-            Opecode::LDX => self.ldx(value)?,
-            Opecode::LDY => self.ldy(value)?,
-            Opecode::STA => self.sta(value)?,
-            Opecode::STX => self.stx(value)?,
-            Opecode::STY => self.sty(value)?,
-            Opecode::TAX => self.tax(value)?,
-            Opecode::TXA => self.txa(value)?,
-            Opecode::TAY => self.tay(value)?,
-            Opecode::TYA => self.tya(value)?,
-            Opecode::TSX => self.tsx(value)?,
-            Opecode::TXS => self.txs(value)?,
-            Opecode::PHA => self.pha(value)?,
-            Opecode::PLA => self.pla(value)?,
-            Opecode::PHP => self.php(value)?,
-            Opecode::PLP => self.plp(value)?,
-            Opecode::NOP => self.nop(value)?,
-        })
+        match opecode {
+            Opecode::ADC => self.adc(value),
+            Opecode::SBC => self.sbc(value),
+            Opecode::AND => self.and(value),
+            Opecode::ORA => self.ora(value),
+            Opecode::EOR => self.eor(value),
+            Opecode::ASL => self.asl(value),
+            Opecode::LSR => self.lsr(value),
+            Opecode::ROL => self.rol(value),
+            Opecode::ROR => self.ror(value),
+            Opecode::BCC => self.bcc(value),
+            Opecode::BCS => self.bcs(value),
+            Opecode::BEQ => self.beq(value),
+            Opecode::BNE => self.bne(value),
+            Opecode::BVC => self.bvc(value),
+            Opecode::BVS => self.bvs(value),
+            Opecode::BPL => self.bpl(value),
+            Opecode::BMI => self.bmi(value),
+            Opecode::BIT => self.bit(value),
+            Opecode::JMP => self.jmp(value),
+            Opecode::JSR => self.jsr(value),
+            Opecode::RTS => self.rts(value),
+            Opecode::BRK => self.brk(value),
+            Opecode::RTI => self.rti(value),
+            Opecode::CMP => self.cmp(value),
+            Opecode::CPX => self.cpx(value),
+            Opecode::CPY => self.cpy(value),
+            Opecode::INC => self.inc(value),
+            Opecode::DEC => self.dec(value),
+            Opecode::INX => self.inx(value),
+            Opecode::DEX => self.dex(value),
+            Opecode::INY => self.iny(value),
+            Opecode::DEY => self.dey(value),
+            Opecode::CLC => self.clc(value),
+            Opecode::SEC => self.sec(value),
+            Opecode::CLI => self.cli(value),
+            Opecode::SEI => self.sei(value),
+            Opecode::CLD => self.cld(value),
+            Opecode::SED => self.sed(value),
+            Opecode::CLV => self.clv(value),
+            Opecode::LDA => self.lda(value),
+            Opecode::LDX => self.ldx(value),
+            Opecode::LDY => self.ldy(value),
+            Opecode::STA => self.sta(value),
+            Opecode::STX => self.stx(value),
+            Opecode::STY => self.sty(value),
+            Opecode::TAX => self.tax(value),
+            Opecode::TXA => self.txa(value),
+            Opecode::TAY => self.tay(value),
+            Opecode::TYA => self.tya(value),
+            Opecode::TSX => self.tsx(value),
+            Opecode::TXS => self.txs(value),
+            Opecode::PHA => self.pha(value),
+            Opecode::PLA => self.pla(value),
+            Opecode::PHP => self.php(value),
+            Opecode::PLP => self.plp(value),
+            Opecode::NOP => self.nop(value),
+        }
     }
 
     fn update_flag(&mut self, flags: Vec<SFlag>, result: u8) {
@@ -209,7 +215,7 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
             match flag {
                 SFlag::N => self.register.p.update_negative(result),
                 SFlag::V => self.register.p.update_overflow(result),
-                SFlag::R => self.register.p.update_reserved(result),
+                SFlag::R => unreachable!("always on"),
                 SFlag::B => self.register.p.update_break(result),
                 SFlag::D => self.register.p.update_decimal(result),
                 SFlag::I => self.register.p.update_interrupt(result),
@@ -220,11 +226,38 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
     }
 
     fn adc(&mut self, value: Value) -> Result<()> {
-        todo!();
+        let value = match value {
+            Value::Ref(value) => self.memory.get(value as usize)?,
+            Value::Immediate(v) => v,
+            _ => unimplemented!(),
+        };
+        let v = self
+            .register
+            .a
+            .wrapping_add(value)
+            .wrapping_add(if self.register.p.c() { 1 } else { 0 });
+
+        self.register.p.toggle(SFlag::V, v < self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::C, SFlag::Z], v);
+        self.register.a = v;
+        Ok(())
     }
 
     fn sbc(&mut self, value: Value) -> Result<()> {
-        todo!();
+        let value = match value {
+            Value::Ref(value) => self.memory.get(value as usize)?,
+            Value::Immediate(v) => v,
+            _ => unimplemented!(),
+        };
+        let v = self
+            .register
+            .a
+            .wrapping_sub(value)
+            .wrapping_sub(if !self.register.p.c() { 1 } else { 0 });
+        self.register.p.toggle(SFlag::V, v > self.register.a);
+        self.update_flag(vec![SFlag::N, SFlag::C, SFlag::Z], v);
+        self.register.a = v;
+        Ok(())
     }
 
     fn and(&mut self, value: Value) -> Result<()> {
@@ -370,7 +403,7 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
 
     fn jsr(&mut self, value: Value) -> Result<()> {
         let to = match value {
-            Value::Ref(value) => self.memory.get(value as usize)?,
+            Value::Ref(value) => value,
             _ => unreachable!(),
         };
         // すでにpcが次の命令のアドレスになっているのでここで
@@ -386,7 +419,7 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
         let upper = self.stack_pop()?;
         self.register.pc = u16::from_le_bytes([lower, upper]);
         self.register.pc += 1;
-        todo!();
+        Ok(())
     }
 
     pub fn reset(&mut self) -> Result<()> {
@@ -417,14 +450,32 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
         todo!();
     }
 
+    fn calc_cmp(&mut self, value: Value, flag: R) -> Result<()> {
+        let value = match value {
+            Value::Ref(addr) => self.memory.get(addr as usize)?,
+            Value::Immediate(value) => value,
+            _ => unreachable!(),
+        };
+        let result = match flag {
+            R::A => self.register.a,
+            R::X => self.register.x,
+            R::Y => self.register.y,
+            _ => unreachable!(),
+        };
+        self.update_flag(
+            vec![SFlag::N, SFlag::Z, SFlag::C],
+            result.wrapping_sub(value),
+        );
+        Ok(())
+    }
     fn cmp(&mut self, value: Value) -> Result<()> {
-        todo!();
+        self.calc_cmp(value, R::A)
     }
     fn cpx(&mut self, value: Value) -> Result<()> {
-        todo!();
+        self.calc_cmp(value, R::X)
     }
     fn cpy(&mut self, value: Value) -> Result<()> {
-        todo!();
+        self.calc_cmp(value, R::Y)
     }
 
     fn inc(&mut self, value: Value) -> Result<()> {
@@ -596,17 +647,20 @@ impl<M: RAM<usize> + ROM<[usize; 2], Output = u16>> CPU<M> {
         Ok(())
     }
 
-    fn pha(&mut self, value: Value) -> Result<()> {
-        todo!();
+    fn pha(&mut self, _: Value) -> Result<()> {
+        self.stack_push(self.register.a)
     }
-    fn pla(&mut self, value: Value) -> Result<()> {
-        todo!();
+    fn pla(&mut self, _: Value) -> Result<()> {
+        self.register.a = self.stack_pop()?;
+        self.update_flag(vec![SFlag::N, SFlag::Z], self.register.a);
+        Ok(())
     }
-    fn php(&mut self, value: Value) -> Result<()> {
-        todo!();
+    fn php(&mut self, _: Value) -> Result<()> {
+        self.stack_push(self.register.p.into())
     }
-    fn plp(&mut self, value: Value) -> Result<()> {
-        todo!();
+    fn plp(&mut self, _: Value) -> Result<()> {
+        self.register.p = self.stack_pop()?.into();
+        Ok(())
     }
 
     fn nop(&self, _: Value) -> Result<()> {

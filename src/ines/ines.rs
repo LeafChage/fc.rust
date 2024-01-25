@@ -1,4 +1,5 @@
 use super::header::INesHeader;
+use crate::sprite::Sprite;
 
 #[derive(Debug)]
 pub struct INes<'a> {
@@ -16,7 +17,21 @@ impl<'a> INes<'a> {
         self.raw[self.header.program_rom_range()].to_vec()
     }
 
-    pub fn sprites(&self) -> Vec<u8> {
-        self.raw[self.header.character_rom_range()].to_vec()
+    pub fn sprites(&self) -> Vec<Sprite> {
+        let rom = &self.raw[self.header.character_rom_range()];
+        let mut v = vec![];
+        for i in 0..(rom.len() / 16) {
+            let from = i * 16;
+            let to = from + 16;
+            let s = &rom[from..to];
+            v.push(Sprite::new(&s.try_into().unwrap()));
+        }
+        v
+    }
+}
+
+impl<'a> std::fmt::Display for INes<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.header)
     }
 }

@@ -1,66 +1,61 @@
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct BufU16 {
-    pub upper: u8,
-    pub lower: u8,
-}
-
-impl Into<u16> for BufU16 {
-    fn into(self) -> u16 {
-        let BufU16 { lower, upper } = self;
-        u16::from_le_bytes([lower, upper])
-    }
-}
-
-impl BufU16 {
-    fn new(upper: u8, lower: u8) -> Self {
-        Self { upper, lower }
-    }
-}
-
-impl From<u16> for BufU16 {
-    fn from(value: u16) -> Self {
-        let lower = (value & 0x00FF) as u8;
-        let upper = (value >> 8) as u8;
-        Self { lower, upper }
-    }
-}
+use super::buf_byte::Bufu8;
+use binary::Byte;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Register {
-    // lower, upper
-    ppu_addr: BufU16,
+    pub control1: u8,
+    pub control2: u8,
+    pub status: u8,
+    pub sprite_addr: u8,
+    pub sprite_data: u8,
+    /// lower, upper
+    ppu_addr: Bufu8,
+    pub scroll_offset: Bufu8,
 }
 
 impl Register {
     pub fn ppu_addr(&self) -> u16 {
-        self.ppu_addr.into()
+        self.ppu_addr.u16_be_bytes()
     }
 
     pub fn put_addr(&mut self, v: u8) {
-        let BufU16 {
-            lower,
-            upper: _,
-        } = self.ppu_addr;
-        self.ppu_addr = BufU16::new(lower, v);
+        self.ppu_addr.add(v);
     }
 
     pub fn increment_ppu_addr(&mut self) {
         // TODO change it by flag.
-        let v = self.ppu_addr() + 1;
-        self.ppu_addr = BufU16::from(v);
+        let addr = self.ppu_addr() + 1;
+        self.ppu_addr = Bufu8::from_16_be_bytes(addr);
+    }
+
+    pub fn put_scroll_offset(&mut self, v: u8) {
+        self.scroll_offset.add(v);
     }
 }
 
 impl Default for Register {
     fn default() -> Self {
         Self {
-            ppu_addr: BufU16::new(0, 0),
+            control1: 0,
+            control2: 0,
+            status: 0,
+            sprite_addr: 0,
+            sprite_data: 9,
+            ppu_addr: Bufu8::default(),
+            scroll_offset: Bufu8::default(),
         }
     }
 }
 
 impl std::fmt::Display for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PPUADDR: {:02X?}", self.ppu_addr())
+        write!(f, "PPUADDR: {}\n", self.ppu_addr)?;
+        write!(f, "ctr1:\n")?;
+        write!(f, "NMI {} /", self.control1.bit(7))?;
+        write!(f, "PPUMaster {} /", self.control1.bit(6))?;
+        write!(f, "SS {} /", self.control1.bit(5))?;
+        write!(f, "BGP {} /", self.control1.bit(4))?;
+        write!(f, "SP {} /", self.control1.bit(3))?;
+        write!(f, "PPUINC {} ", self.control1.bit(2))
     }
 }
