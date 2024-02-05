@@ -3,11 +3,12 @@ use super::palette::PaletteTable;
 use crate::memory::{RAM, ROM, WOM};
 use crate::result::{e, Result};
 use crate::sprite::Sprite;
+use crate::ines::SpriteROM;
 
 pub struct MemoryMap {
     // 0x0000～0x0FFF
     // 0x1000～0x1FFF
-    pub pattern: Vec<Sprite>,
+    pub pattern: SpriteROM,
 
     /// name0: 0x2000～0x23BF
     /// attribute0: 0x23C0～0x23FF
@@ -40,7 +41,7 @@ impl MemoryMap {
     pub fn sprite(&self, index: usize) -> Sprite {
         self.pattern[index]
     }
-    pub fn new(pattern: Vec<Sprite>) -> Self {
+    pub fn new(pattern: SpriteROM) -> Self {
         MemoryMap {
             pattern,
             background0: BackgroundTable::default(),

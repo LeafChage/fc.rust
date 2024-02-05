@@ -1,15 +1,23 @@
+use crate::array2::Array2;
 use crate::memory::{RAM, ROM, WOM};
-use crate::rect::Rect;
-use crate::vec2::Vec2;
 use crate::result::{e, Result};
+use crate::vec2::Vec2;
 
 pub const WIDTH: usize = 16;
 pub const HEIGHT: usize = 15;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct AttributeTable {
     // index of palette
-    palettes: [[u8; WIDTH]; HEIGHT],
+    palettes: Array2<u8>,
+}
+
+impl Default for AttributeTable {
+    fn default() -> Self {
+        Self {
+            palettes: Array2::from_with_size(WIDTH, HEIGHT),
+        }
+    }
 }
 
 impl AttributeTable {
@@ -21,17 +29,8 @@ impl AttributeTable {
         [[top_left, top_right], [borrom_left, bottom_right]]
     }
 
-    /// TODO: NameTableにも同じ処理があるので、
-    /// 多次元配列へのアクセスを共通化したい。
-    pub fn fetch(&self, r: Rect) -> Vec<&[u8]> {
-        let Vec2(w, h) = r.size();
-        let Vec2(x, y) = r.pos();
-
-        let mut result = Vec::new();
-        for y in y..(y + h) {
-            result.push(&self.palettes[y][x..(x + w)]);
-        }
-        result
+    pub fn fetch_line(&self, pos: Vec2<usize>, length: usize) -> &[u8] {
+        self.palettes.line(pos, length)
     }
 }
 
@@ -47,10 +46,10 @@ impl WOM<usize> for AttributeTable {
             let palettes = AttributeTable::analyze(v);
             let x = (i % (WIDTH / 2)) * 2;
             let y = (i / (WIDTH / 2)) * 2;
-            self.palettes[y][x] = palettes[0][0];
-            self.palettes[y][x + 1] = palettes[0][1];
-            self.palettes[y + 1][x] = palettes[1][0];
-            self.palettes[y + 1][x + 1] = palettes[1][1];
+            self.palettes[[y, x]] = palettes[0][0];
+            self.palettes[[y, x + 1]] = palettes[0][1];
+            self.palettes[[y + 1, x]] = palettes[1][0];
+            self.palettes[[y + 1, x + 1]] = palettes[1][1];
             Ok(())
         }
     }
@@ -66,43 +65,37 @@ impl ROM<usize> for AttributeTable {
             let x = (i % (WIDTH / 2)) * 2;
             let y = (i / (WIDTH / 2)) * 2;
 
-            Ok(self.palettes[y + 1][x + 1] << 6
-                | self.palettes[y + 1][x] << 4
-                | self.palettes[y][x + 1] << 2
-                | self.palettes[y][x])
+            Ok(self.palettes[[y + 1, x + 1]] << 6
+                | self.palettes[[y + 1, x]] << 4
+                | self.palettes[[y, x + 1]] << 2
+                | self.palettes[[y, x]])
         }
     }
 }
 
 #[test]
 fn it_put() {
-    let mut a = AttributeTable {
-        palettes: [[0; WIDTH]; HEIGHT],
-    };
+    let mut a = AttributeTable::default();
     a.put(0, 0b_11_10_01_00).unwrap();
-    assert_eq!(a.palettes[0][0], 0);
-    assert_eq!(a.palettes[0][1], 1);
-    assert_eq!(a.palettes[1][0], 2);
-    assert_eq!(a.palettes[1][1], 3);
+    assert_eq!(a.palettes[[0, 0]], 0);
+    assert_eq!(a.palettes[[0, 1]], 1);
+    assert_eq!(a.palettes[[1, 0]], 2);
+    assert_eq!(a.palettes[[1, 1]], 3);
 }
 
 #[test]
 fn it_put1() {
-    let mut a = AttributeTable {
-        palettes: [[0; WIDTH]; HEIGHT],
-    };
+    let mut a = AttributeTable::default();
     a.put(9, 0b_11_10_01_00).unwrap();
-    assert_eq!(a.palettes[2][2], 0);
-    assert_eq!(a.palettes[2][3], 1);
-    assert_eq!(a.palettes[3][2], 2);
-    assert_eq!(a.palettes[3][3], 3);
+    assert_eq!(a.palettes[[2, 2]], 0);
+    assert_eq!(a.palettes[[2, 3]], 1);
+    assert_eq!(a.palettes[[3, 2]], 2);
+    assert_eq!(a.palettes[[3, 3]], 3);
 }
 
 #[test]
 fn it_get() {
-    let mut a = AttributeTable {
-        palettes: [[0; WIDTH]; HEIGHT],
-    };
+    let mut a = AttributeTable::default();
     a.put(9, 0b_11_10_01_00).unwrap();
     assert_eq!(a.get(9).unwrap(), 0b_11_10_01_00);
 }

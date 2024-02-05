@@ -1,15 +1,15 @@
+use super::cycle::{Line, PPUCycle};
 use super::memory::MemoryMap;
 use super::register::Register;
 use crate::display::Display;
 use crate::memory::{RAM, ROM};
-use crate::rect::Rect;
 use crate::result::Result;
 use crate::vec2::Vec2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct PPU {
-    cycle: usize,
+    cycle: PPUCycle,
     register: RefCell<Register>,
     memory: MemoryMap,
     display: Rc<RefCell<Display>>,
@@ -22,7 +22,7 @@ impl PPU {
         display: Rc<RefCell<Display>>,
     ) -> Self {
         PPU {
-            cycle: 0,
+            cycle: PPUCycle::default(),
             register,
             memory,
             display,
@@ -43,27 +43,25 @@ impl PPU {
         fun(&mut self.register.borrow_mut(), &mut self.memory)
     }
 
-    pub fn exec(&mut self, cycle: usize) -> Result<usize> {
-        self.cycle += cycle;
-        if self.cycle < 341 * 240 {
-            return Ok(self.cycle);
-        }
-        self.cycle = 0;
-
-        let v = self.register.borrow().scroll_offset.older() as usize;
-        let h = self.register.borrow().scroll_offset.later() as usize;
-        let (name, attribute) = self.fetch_background(Rect::from_pos_size(
-            Vec2::new(h, v),
-            Vec2::new(32 + h, 30 + v),
-        ));
-        for y in 0..30 {
+    /// 縦も同様に240列しかないが、20はHBlankが発生する。
+    /// この間PPURegisterの値をHBlank中に変更する。
+    /// http://pgate1.at-ninja.jp/NES_on_FPGA/nes_ppu.htm
+    pub fn exec(&mut self, cycle: usize) -> Result<bool> {
+        if let Some(line) = self.cycle.add_cycle_with_next(cycle) {
+            let Line(y) = line;
+            let v = self.register.borrow().scroll_offset.older() as usize;
+            let h = self.register.borrow().scroll_offset.later() as usize;
+            let (name, attribute) = self.fetch_background_line(Vec2::new(v, h + y));
             for x in 0..32 {
-                let sprite = self.memory.sprite(name[y][x] as usize);
+                // ここでの ｙ の単位はspriteの単位で8倍になってしまっているので
+                //     計算が狂うbyte単位の列に直すか、8倍のまま計算して、
+                // VBlankの部分もやるなおすしかない
+                let sprite = self.memory.sprite(name[x] as usize);
                 if !sprite.zero() {
                     let palette = &self
                         .memory
                         .palette
-                        .background_palette(attribute[y / 2][x / 2] as usize);
+                        .background_palette(attribute[x / 2] as usize);
                     self.display.borrow_mut().put_image(x, y, &sprite, &palette);
                 } else {
                     self.display.borrow_mut().put_plane(
@@ -73,63 +71,41 @@ impl PPU {
                     );
                 }
             }
+
+            if line.is_last() {
+                self.register.borrow_mut().toggle_hbrank(true);
+            }
         }
-        Ok(0)
+
+        if self.cycle.has_drawed() {
+            self.cycle.rewind();
+            // TODO: 無理やりすぎる
+            return Ok(true);
+        }
+        Ok(false)
     }
 
-    /// | rect0 | rect1 |
-    /// | rect2 | rect3 |
-    fn fetch_background(&self, rect: Rect) -> ([[u8; 32]; 30], [[u8; 16]; 15]) {
-        let pos = rect.pos();
+    /// | 0 | 1 |
+    /// | 2 | 3 |
+    fn fetch_background_line(&self, pos: Vec2<usize>) -> ([u8; 32], [u8; 16]) {
         let Vec2(x, y) = pos;
-        let rect0 = Rect::from_pos2(pos, Vec2::new(32, 30));
-        let rect1 = Rect::from_pos2(Vec2::new(0, y), Vec2::new(x, 30));
-        let rect2 = Rect::from_pos2(Vec2::new(x, 0), Vec2::new(32, y));
-        let rect3 = Rect::from_pos2(Vec2::zero(), pos);
-
-        let (name0, attribute0) = self.memory.background0.fetch(rect0);
-        let (name1, attribute1) = self.memory.background1.fetch(rect1);
-        let (name2, attribute2) = self.memory.background2.fetch(rect2);
-        let (name3, attribute3) = self.memory.background3.fetch(rect3);
-
-        let mut name = [[0u8; 32]; 30];
-        for y in 0..30 {
-            for x in 0..32 {
-                if name0.len() > y {
-                    if name0[y].len() > x {
-                        name[y][x] = name0[y][x];
-                    } else {
-                        name[y][x] = name1[y][x - name[y].len()];
-                    }
-                } else {
-                    if name2[y].len() > x {
-                        name[y][x] = name2[y - name0.len()][x];
-                    } else {
-                        name[y][x] = name3[y - name0.len()][x - name2[y].len()];
-                    }
-                }
-            }
+        if y < 30 {
+            let (name0, attribute0) = self.memory.background0.fetch_line(pos, 32 - x);
+            let (name1, attribute1) = self.memory.background1.fetch_line(Vec2::new(0, y), x);
+            (
+                [name0, name1].concat().try_into().unwrap(),
+                [attribute0, attribute1].concat().try_into().unwrap(),
+            )
+        } else {
+            let pos = pos - Vec2::new(0, 30);
+            let Vec2(x, y) = pos;
+            let (name2, attribute2) = self.memory.background2.fetch_line(pos, 32 - x);
+            let (name3, attribute3) = self.memory.background3.fetch_line(Vec2::new(0, y), x);
+            (
+                [name2, name3].concat().try_into().unwrap(),
+                [attribute2, attribute3].concat().try_into().unwrap(),
+            )
         }
-
-        let mut attribute = [[0u8; 16]; 15];
-        for y in 0..15 {
-            for x in 0..16 {
-                if name0.len() > y {
-                    if name0[y].len() > x {
-                        name[y][x] = name0[y][x];
-                    } else {
-                        name[y][x] = name1[y][x - name[y].len()];
-                    }
-                } else {
-                    if name2[y].len() > x {
-                        name[y][x] = name2[y - name0.len()][x];
-                    } else {
-                        name[y][x] = name3[y - name0.len()][x - name2[y].len()];
-                    }
-                }
-            }
-        }
-        (name, attribute)
     }
 }
 

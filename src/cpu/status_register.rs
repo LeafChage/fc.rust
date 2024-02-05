@@ -1,4 +1,5 @@
-use binary::Byte;
+use crate::bits::Byte;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct StatusRegister {
     negative: bool,

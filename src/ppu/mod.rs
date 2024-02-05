@@ -8,6 +8,7 @@ mod palette;
 mod ppu;
 mod ppu_bus;
 mod register;
+mod cycle;
 
 pub use color::Color;
 pub use memory::MemoryMap;

@@ -1,3 +1,5 @@
+mod array2;
+mod bits;
 mod cpu;
 mod display;
 mod ines;
@@ -76,7 +78,14 @@ async fn main() -> Result<()> {
     let apu = vec![0; 0x401F - 0x4000];
 
     let cpu_register = cpu::Register::default();
-    let cpu_memory = cpu::MemoryMap::new(Rc::clone(&ppu), ines.program(), wram, apu, exram, exrom);
+    let cpu_memory = cpu::MemoryMap::new(
+        Rc::clone(&ppu),
+        ines.program().to_vec(),
+        wram,
+        apu,
+        exram,
+        exrom,
+    );
     let mut cpu = cpu::CPU::new(cpu_register, cpu_memory);
 
     cpu.reset()?;
@@ -95,19 +104,20 @@ async fn app<
     ppu: Rc<RefCell<ppu::PPU>>,
     display: Rc<RefCell<display::Display>>,
 ) -> Result<()> {
-    loop {
+    for _ in 0..1000 {
         if macroquad::input::is_key_pressed(macroquad::input::KeyCode::Space) {
             cpu.reset()?;
-        } else {
-            loop {
-                let cycle = cpu.exec(cli.debug)?;
-                let cycle = ppu.borrow_mut().exec(cycle * 3)?;
-                if cli.debug {
-                    println!("{}", cpu);
-                }
-                if cycle == 0 {
-                    break;
-                }
+        }
+
+        loop {
+            println!("------------------");
+            let cycle = cpu.exec(cli.debug)?;
+            let drawed = ppu.borrow_mut().exec(cycle * 3)?;
+            if cli.debug {
+                println!("{}", cpu);
+            }
+            if drawed {
+                break;
             }
         }
 
@@ -116,4 +126,5 @@ async fn app<
         quad::draw_texture(&tx, 0f32, 0f32, quad::WHITE);
         quad::next_frame().await;
     }
+    Ok(())
 }

@@ -1,15 +1,16 @@
 mod sprite;
 mod sprite_byte;
 
+pub use crate::ines::SpriteROM;
 pub use sprite::Sprite;
 pub use sprite_byte::SpriteByte;
 
-pub fn debug_sprite(sprites: Vec<Sprite>) {
+pub fn debug_sprite(sprites: SpriteROM) {
     let mut image: image::RgbImage = image::ImageBuffer::new(256 * 2, 240 * 2);
     let sprite_per_line = 256 / 8;
 
     let mut i = 0;
-    for sprite in sprites.iter() {
+    for sprite in sprites.raw().iter() {
         let sprite_bits = sprite.bits();
         for iy in 0..8 {
             for ix in 0..8 {

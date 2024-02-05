@@ -1,7 +1,5 @@
-mod bits;
 mod showable;
 
-pub use bits::Byte;
 pub use showable::{show_binary, show_binary_with, showable, showable_with};
 
 pub fn byte_to_4bit(v: u8) -> (u8, u8) {

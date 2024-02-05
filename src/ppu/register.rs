@@ -1,5 +1,5 @@
 use super::buf_byte::Bufu8;
-use binary::Byte;
+use crate::bits::Byte;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Register {
@@ -20,6 +20,10 @@ impl Register {
 
     pub fn put_addr(&mut self, v: u8) {
         self.ppu_addr.add(v);
+    }
+
+    pub fn toggle_hbrank(&mut self, v: bool) {
+        self.control2.set(7, v);
     }
 
     pub fn increment_ppu_addr(&mut self) {

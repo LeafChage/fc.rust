@@ -52,3 +52,15 @@ where
         Vec2(l1 / rhs, l2 / rhs)
     }
 }
+
+impl<T, E> std::ops::Mul<E> for Vec2<T>
+where
+    E: Copy,
+    T: std::ops::Mul<E, Output = T>,
+{
+    type Output = Self;
+    fn mul(self, rhs: E) -> Self::Output {
+        let Vec2(l1, l2) = self;
+        Vec2(l1 * rhs, l2 * rhs)
+    }
+}

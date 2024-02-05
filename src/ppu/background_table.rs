@@ -1,8 +1,8 @@
 use super::attribute_table::{AttributeTable, ATTIRBUTE_TABLE_LENGTH};
 use super::name_table::{NameTable, NAME_TABLE_LENGTH};
 use crate::memory::{RAM, ROM, WOM};
-use crate::rect::Rect;
 use crate::result::{e, Result};
+use crate::vec2::Vec2;
 
 #[derive(Default, Debug)]
 pub struct BackgroundTable {
@@ -11,8 +11,11 @@ pub struct BackgroundTable {
 }
 
 impl BackgroundTable {
-    pub fn fetch(&self, r: Rect) -> (Vec<&[u8]>, Vec<&[u8]>) {
-        (self.name.fetch(r.clone()), self.attribute.fetch(r.clone() / 2))
+    pub fn fetch_line(&self, pos: Vec2<usize>, length: usize) -> (&[u8], &[u8]) {
+        (
+            self.name.fetch_line(pos, length),
+            self.attribute.fetch_line(pos / 2, length / 2),
+        )
     }
 }
 

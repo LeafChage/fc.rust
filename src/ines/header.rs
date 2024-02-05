@@ -20,7 +20,9 @@ pub struct INesHeader {
     padding: [u8; 5],
 }
 
+/// b"NES\0"
 const MAGIC: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
+const MAGIC_SUPER_MARIO: [u8; 4] = [0x45, 0x4E, 0x1A, 0x53];
 const PROGRAM_ROM_UNIT_SIZE: usize = 16384;
 const CHARACTER_ROM_UNIT_SIZE: usize = 8192;
 
@@ -28,9 +30,8 @@ impl INesHeader {
     pub const INES_HEADER_LENGTH: usize = 16;
 
     pub fn parser(data: &[u8]) -> anyhow::Result<INesHeader, anyhow::Error> {
-        if !(data.len() > Self::INES_HEADER_LENGTH
-            && data[0..4] == MAGIC
-            && data[11..16] == [0u8; 5])
+        if !(data.len() > Self::INES_HEADER_LENGTH && (data[0..4] == MAGIC)
+            || (data[0..4] == MAGIC_SUPER_MARIO) && data[11..16] == [0u8; 5])
         {
             return Err(anyhow::anyhow!("not ines format"));
         }

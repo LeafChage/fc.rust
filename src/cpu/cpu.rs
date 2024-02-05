@@ -3,7 +3,7 @@ use super::status_register::SFlag;
 use crate::memory::{ROM, WOM};
 use crate::program::{IndexRegister, Opecode, Operand, CYCLES, ORDER_SET};
 use crate::result::Result;
-use binary::Byte;
+use crate::bits::Byte;
 
 pub struct CPU<M>
 where

@@ -13,6 +13,7 @@ impl ROM<usize> for PPU {
             2 => self.handle(|register, _| {
                 let status = register.status;
                 register.scroll_offset.clear();
+                register.toggle_hbrank(false);
                 Ok(status)
             }),
             3 => Err(e::writeonly(index)),
