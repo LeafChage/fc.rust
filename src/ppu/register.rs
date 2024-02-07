@@ -23,7 +23,7 @@ impl Register {
     }
 
     pub fn toggle_hbrank(&mut self, v: bool) {
-        self.control2.set(7, v);
+        self.status = self.status.set(7, v);
     }
 
     pub fn increment_ppu_addr(&mut self) {

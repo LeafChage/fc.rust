@@ -26,7 +26,7 @@ impl WOM<usize> for BackgroundTable {
     fn put(&mut self, i: usize, v: Self::Input) -> Result<()> {
         if i < NAME_TABLE_LENGTH {
             self.name.put(i, v)
-        } else if i < ATTIRBUTE_TABLE_LENGTH {
+        } else if (i - NAME_TABLE_LENGTH) < ATTIRBUTE_TABLE_LENGTH {
             self.attribute.put(i - NAME_TABLE_LENGTH, v)
         } else {
             Err(e::index_out_of_range(i))

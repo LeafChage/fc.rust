@@ -18,16 +18,16 @@ impl Rect {
         Self { pos, size }
     }
     pub fn x(&self) -> usize {
-        self.pos.0
+        self.pos.x()
     }
     pub fn y(&self) -> usize {
-        self.pos.1
+        self.pos.y()
     }
     pub fn width(&self) -> usize {
-        self.size.0
+        self.size.x()
     }
     pub fn height(&self) -> usize {
-        self.size.1
+        self.size.y()
     }
 
     pub fn size(&self) -> Vec2<usize> {

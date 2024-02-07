@@ -31,10 +31,11 @@ impl RAM<usize> for NameTable {}
 impl WOM<usize> for NameTable {
     type Input = u8;
     fn put(&mut self, i: usize, v: Self::Input) -> Result<()> {
-        if NAME_TABLE_LENGTH < i {
+        if i >= NAME_TABLE_LENGTH {
             Err(e::index_out_of_range(i))
         } else {
-            self.tiles[[i / WIDTH, i % WIDTH]] = v;
+            let (width, _) = self.tiles.dimention().xy();
+            self.tiles[[i % width, i / width]] = v;
             Ok(())
         }
     }
@@ -44,24 +45,28 @@ impl ROM<usize> for NameTable {
     type Output = u8;
 
     fn get(&self, i: usize) -> Result<Self::Output> {
-        if NAME_TABLE_LENGTH < i {
+        if i >= NAME_TABLE_LENGTH {
             Err(e::index_out_of_range(i))
         } else {
-            Ok(self.tiles[[i / WIDTH, i % WIDTH]])
+            let (width, _) = self.tiles.dimention().xy();
+            Ok(self.tiles[[i % width, i / width]])
         }
     }
 }
 
 #[test]
 fn it_get() {
-    let mut name = NameTable::default();
-    name.tiles[[1, 2]] = 1;
-    assert_eq!(name.get(WIDTH + 2).unwrap(), 1);
+    let name = NameTable {
+        tiles: Array2::new(vec![vec![0, 0, 0], vec![0, 1, 0], vec![0, 0, 0]]),
+    };
+    assert_eq!(name.get(3 + 1).unwrap(), 1);
 }
 
 #[test]
 fn it_put() {
-    let mut name = NameTable::default();
-    name.put(WIDTH + 2, 1).unwrap();
-    assert_eq!(name.tiles[[1, 2]], 1)
+    let mut name = NameTable {
+        tiles: Array2::from_with_size(3, 3),
+    };
+    name.put(3 + 2, 1).unwrap();
+    assert_eq!(name.tiles[[2, 1]], 1)
 }

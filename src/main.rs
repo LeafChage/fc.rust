@@ -104,7 +104,8 @@ async fn app<
     ppu: Rc<RefCell<ppu::PPU>>,
     display: Rc<RefCell<display::Display>>,
 ) -> Result<()> {
-    for _ in 0..1000 {
+    // for _ in 0..3 {
+    loop {
         if macroquad::input::is_key_pressed(macroquad::input::KeyCode::Space) {
             cpu.reset()?;
         }

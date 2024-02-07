@@ -53,9 +53,6 @@ impl PPU {
             let h = self.register.borrow().scroll_offset.later() as usize;
             let (name, attribute) = self.fetch_background_line(Vec2::new(v, h + y));
             for x in 0..32 {
-                // ここでの ｙ の単位はspriteの単位で8倍になってしまっているので
-                //     計算が狂うbyte単位の列に直すか、8倍のまま計算して、
-                // VBlankの部分もやるなおすしかない
                 let sprite = self.memory.sprite(name[x] as usize);
                 if !sprite.zero() {
                     let palette = &self
@@ -88,7 +85,7 @@ impl PPU {
     /// | 0 | 1 |
     /// | 2 | 3 |
     fn fetch_background_line(&self, pos: Vec2<usize>) -> ([u8; 32], [u8; 16]) {
-        let Vec2(x, y) = pos;
+        let (x, y) = pos.xy();
         if y < 30 {
             let (name0, attribute0) = self.memory.background0.fetch_line(pos, 32 - x);
             let (name1, attribute1) = self.memory.background1.fetch_line(Vec2::new(0, y), x);
@@ -98,7 +95,7 @@ impl PPU {
             )
         } else {
             let pos = pos - Vec2::new(0, 30);
-            let Vec2(x, y) = pos;
+            let (x, y) = pos.xy();
             let (name2, attribute2) = self.memory.background2.fetch_line(pos, 32 - x);
             let (name3, attribute3) = self.memory.background3.fetch_line(Vec2::new(0, y), x);
             (

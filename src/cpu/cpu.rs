@@ -1,9 +1,9 @@
 use super::register::Register;
 use super::status_register::SFlag;
+use crate::bits::Byte;
 use crate::memory::{ROM, WOM};
 use crate::program::{IndexRegister, Opecode, Operand, CYCLES, ORDER_SET};
 use crate::result::Result;
-use crate::bits::Byte;
 
 pub struct CPU<M>
 where
@@ -388,8 +388,15 @@ where
         self.branch(value, self.register.p.n())
     }
 
-    fn bit(&mut self, _: Value) -> Result<()> {
-        todo!();
+    fn bit(&mut self, value: Value) -> Result<()> {
+        let value = match value {
+            Value::Ref(addr) => self.memory.get(addr as usize)?,
+            _ => unreachable!(),
+        };
+        self.update_flag(vec![SFlag::Z], value & self.register.a);
+        self.register.p.toggle(SFlag::N, value.bit(7));
+        self.register.p.toggle(SFlag::V, value.bit(6));
+        Ok(())
     }
 
     fn jmp(&mut self, value: Value) -> Result<()> {

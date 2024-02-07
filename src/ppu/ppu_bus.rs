@@ -21,7 +21,7 @@ impl ROM<usize> for PPU {
             5 => Err(e::writeonly(index)),
             6 => Err(e::writeonly(index)),
             7 => self.handle(|register, memory| {
-                let addr = register.ppu_addr();
+                let addr = dbg!(register.ppu_addr());
                 register.increment_ppu_addr();
                 memory.get(addr as usize)
             }),
